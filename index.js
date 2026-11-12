@@ -1,6 +1,6 @@
 // === Constants ===
 const BASE = "https://fsa-crud-2aa9294fe819.herokuapp.com/api";
-const COHORT = ""; // Make sure to change this!
+const COHORT = "/2609-StaceyB"; // Make sure to change this!
 const API = BASE + COHORT;
 
 // === State ===
@@ -21,10 +21,56 @@ async function getParties() {
   }
 }
 
+/**
+ * Create a new party via the API
+ * @param {Party} party
+ */
+async function addParty(party) {
+  try {
+    // `fetch` requires some extra information to make non-GET requests
+    // TODO
+    console.log("party", party);
+    console.log("API", API + "/events/" + party.id);
+    await fetch(API + "/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(party),
+    });
+    // data on server chaged so we need to query the API again
+    await getParties();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/**
+ * Deletes the party with the given id
+ * @param {string | number} id
+ */
+async function deleteParty(id) {
+  try {
+    // The ID of the party to delete is sent via the URL, not the body!
+    // DELETE requests don't have a body.
+    // TODO
+    await fetch(API + "/events/" + id, {
+      method: "DELETE",
+    });
+
+    // since this is also a mutation, we need to query the API again
+    await getParties();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
 /** Updates state with a single party from the API */
 async function getParty(id) {
   try {
+    console.log(API + "/events/" + id);
     const response = await fetch(API + "/events/" + id);
+    console.log("response", response);
     const result = await response.json();
     selectedParty = result.data;
     render();
@@ -36,6 +82,7 @@ async function getParty(id) {
 /** Updates state with all RSVPs from the API */
 async function getRsvps() {
   try {
+    console.log(API + "/rsvps");
     const response = await fetch(API + "/rsvps");
     const result = await response.json();
     rsvps = result.data;
@@ -48,6 +95,7 @@ async function getRsvps() {
 /** Updates state with all guests from the API */
 async function getGuests() {
   try {
+    console.log(API + "/guests");
     const response = await fetch(API + "/guests");
     const result = await response.json();
     guests = result.data;
@@ -101,10 +149,15 @@ function SelectedParty() {
     </time>
     <address>${selectedParty.location}</address>
     <p>${selectedParty.description}</p>
+    <h4>Guests</h4>
     <GuestList></GuestList>
+    <br />
+    <button>Delete party</button>
   `;
   $party.querySelector("GuestList").replaceWith(GuestList());
-
+  // Add a delete button to each party list item
+  const $delete = $party.querySelector("button");
+  $delete.addEventListener("click", () => deleteParty(selectedParty.id));
   return $party;
 }
 
@@ -113,8 +166,8 @@ function GuestList() {
   const $ul = document.createElement("ul");
   const guestsAtParty = guests.filter((guest) =>
     rsvps.find(
-      (rsvp) => rsvp.guestId === guest.id && rsvp.eventId === selectedParty.id
-    )
+      (rsvp) => rsvp.guestId === guest.id && rsvp.eventId === selectedParty.id,
+    ),
   );
 
   // Simple components can also be created anonymously:
@@ -126,6 +179,45 @@ function GuestList() {
   $ul.replaceChildren(...$guests);
 
   return $ul;
+}
+
+function NewPartyForm() {
+  const $form = document.createElement("form");
+  $form.innerHTML = `
+    <label>
+      Name
+      <input name="name" required />
+    </label>
+    <label>
+      Description
+      <input name="description" required />
+    </label>
+    <label>
+      Date
+      <input name="date" required />
+    </label>
+    <label>
+      Location
+      <input name="location" required />
+    </label>
+    <button>
+      Add new party
+    </button>
+  `;
+  $form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const data = new FormData($form);
+    const isoDate = new Date(data.get("date")).toISOString();
+    // TODO - call `addParty` on form submit
+    addParty({
+      name: data.get("name"),
+      date: isoDate,
+      location: data.get("location"),
+      description: data.get("description"),
+    });
+  });
+  return $form;
 }
 
 // === Render ===
@@ -142,11 +234,16 @@ function render() {
         <h2>Party Details</h2>
         <SelectedParty></SelectedParty>
       </section>
+      <section>
+        <h2>Plan a new party</h2>
+        <NewPartyForm></NewPartyForm>
+      </section>
     </main>
   `;
 
   $app.querySelector("PartyList").replaceWith(PartyList());
   $app.querySelector("SelectedParty").replaceWith(SelectedParty());
+  $app.querySelector("NewPartyForm").replaceWith(NewPartyForm());
 }
 
 async function init() {
